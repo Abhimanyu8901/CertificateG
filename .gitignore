@@ -1,0 +1,26 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Runtime and generated artifacts
+certificates.db
+certificates.db.backup
+certificates/*
+!certificates/.gitkeep
+qr_codes/*
+!qr_codes/.gitkeep
+
+# OS/editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Build/distribution
+build/
+dist/
+*.egg-info/
