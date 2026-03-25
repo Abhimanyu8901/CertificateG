@@ -71,12 +71,25 @@ def generate_form():
     """Certificate generation form"""
     return render_template('generate.html')
 
+@app.route('/generate', methods=['POST'])
 @app.route('/generate_certificate', methods=['POST'])
 def generate_certificate():
     """Generate a single certificate"""
     try:
+        wants_json = (
+            request.is_json
+            or request.headers.get('Content-Type') == 'application/json'
+            or 'application/json' in request.headers.get('Accept', '')
+        )
+
+        def error_response(message, status_code=400):
+            payload = {'success': False, 'error': message}
+            if wants_json:
+                return jsonify(payload), status_code
+            return render_template('generate.html', error=message), status_code
+
         if not cert_gen:
-            return jsonify({'success': False, 'error': 'Certificate generator not available'})
+            return error_response('Certificate generator not available', 503)
             
         # Debug: Print all form data
         print("Form data received:", dict(request.form))
@@ -103,20 +116,20 @@ def generate_certificate():
             if not event_name: missing_fields.append('Course Name')
             if not event_date: missing_fields.append('Completion Date')
             error_msg = f'Please fill in all required fields: {", ".join(missing_fields)}'
-            return jsonify({'success': False, 'error': error_msg})
+            return error_response(error_msg, 400)
         
         # Validate date format
         try:
             datetime.strptime(event_date, '%Y-%m-%d')
         except ValueError:
             error_msg = 'Invalid date format. Please use the date picker or ensure date is in YYYY-MM-DD format.'
-            return jsonify({'success': False, 'error': error_msg})
+            return error_response(error_msg, 400)
         
         # Basic name validation - allow letters, spaces, apostrophes, hyphens, periods
         name_pattern = r"^[a-zA-Z\s'\-\.]+$"
         if not re.match(name_pattern, recipient_name):
             error_msg = 'Recipient name contains invalid characters. Please use only letters, spaces, apostrophes, hyphens, and periods.'
-            return jsonify({'success': False, 'error': error_msg})
+            return error_response(error_msg, 400)
         
         # Prepare recipient data for certificate generation
         recipient_data = {
@@ -180,18 +193,20 @@ def generate_certificate():
             }
         
         # Check if request wants JSON or HTML response
-        if request.headers.get('Content-Type') == 'application/json' or request.headers.get('Accept', '').startswith('application/json'):
+        if wants_json:
             return jsonify(result)
         else:
             # Return HTML response for regular form submission
             if result.get('success'):
                 return render_template('generation_result.html', result=result)
             else:
-                return render_template('generate.html', error=result.get('error'))
+                return render_template('generate.html', error=result.get('error')), 500
         
     except Exception as e:
         print(f"Certificate generation error: {str(e)}")
-        return jsonify({'success': False, 'error': f'Generation failed: {str(e)}'})
+        if request.is_json or 'application/json' in request.headers.get('Accept', ''):
+            return jsonify({'success': False, 'error': f'Generation failed: {str(e)}'}), 500
+        return render_template('generate.html', error=f'Generation failed: {str(e)}'), 500
 
 @app.route('/certificates')
 def certificates_list():
